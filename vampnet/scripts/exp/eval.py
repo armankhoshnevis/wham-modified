@@ -31,7 +31,8 @@ def eval(
         verbose=True, 
         audio_load_worker=4,
     )
-    frechet.model.to("cuda" if torch.cuda.is_available() else "cpu")
+    # frechet.model.to("cuda" if torch.cuda.is_available() else "cpu")
+    frechet.model.to("mps" if torch.backends.mps.is_available() else "cpu")
 
     # figure out what conditions we have
     conditions = [d.name for d in exp_dir.iterdir() if d.is_dir()]
