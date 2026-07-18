@@ -1,0 +1,6 @@
+Interface.coarse_ckpt: ./models/wham_release/coarse.pth
+Interface.coarse2fine_ckpt: ./models/wham_release/c2f.pth
+Interface.codec_ckpt: ./models/wham_release/codec.pth
+Interface.wavebeat_ckpt: ./models/wham_release/wavebeat.pth
+Interface.coarse_chunk_size_s: 2
+Interface.coarse2fine_chunk_size_s: 1
