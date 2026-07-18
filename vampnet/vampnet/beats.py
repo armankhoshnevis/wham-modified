@@ -204,7 +204,12 @@ class WaveBeat(BeatTracker):
     def __init__(self, ckpt_path: str = "checkpoints/wavebeat", device: str = "cpu"):
         from wavebeat.dstcn import dsTCNModel
 
-        model = dsTCNModel.load_from_checkpoint(ckpt_path, map_location=torch.device(device))
+        model = dsTCNModel.load_from_checkpoint(
+            ckpt_path,
+            map_location=torch.device(device),
+            weights_only=False,
+        )
+        # model = dsTCNModel.load_from_checkpoint(ckpt_path, map_location=torch.device(device))
         model.eval()
 
         self.device = device
