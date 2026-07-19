@@ -172,16 +172,52 @@ def accuracy(
 
     return accuracy
 
+# def _metrics(z_hat, r, target, flat_mask, output):
+#     for r_range in [(0, 0.5), (0.5, 1.0)]:
+#         unmasked_target = target.masked_fill(flat_mask.bool(), IGNORE_INDEX)
+#         masked_target = target.masked_fill(~flat_mask.bool(), IGNORE_INDEX)
+
+#         assert target.shape[0] == r.shape[0]
+#         # grab the indices of the r values that are in the range
+#         r_idx = (r >= r_range[0]) & (r < r_range[1])
+
+#         # grab the target and z_hat values that are in the range
+#         r_unmasked_target = unmasked_target[r_idx]
+#         r_masked_target = masked_target[r_idx]
+#         r_z_hat = z_hat[r_idx]
+
+#         for topk in (1, 25):
+#             s, e = r_range
+#             tag = f"accuracy-{s}-{e}/top{topk}"
+
+#             output[f"{tag}/unmasked"] = accuracy(
+#                 preds=r_z_hat,
+#                 target=r_unmasked_target,
+#                 ignore_index=IGNORE_INDEX,
+#                 top_k=topk,
+#             )
+#             output[f"{tag}/masked"] = accuracy(
+#                 preds=r_z_hat,
+#                 target=r_masked_target,
+#                 ignore_index=IGNORE_INDEX,
+#                 top_k=topk,
+#             )
+
 def _metrics(z_hat, r, target, flat_mask, output):
     for r_range in [(0, 0.5), (0.5, 1.0)]:
         unmasked_target = target.masked_fill(flat_mask.bool(), IGNORE_INDEX)
         masked_target = target.masked_fill(~flat_mask.bool(), IGNORE_INDEX)
 
         assert target.shape[0] == r.shape[0]
-        # grab the indices of the r values that are in the range
+
+        # Select examples whose mask ratio falls inside this range
         r_idx = (r >= r_range[0]) & (r < r_range[1])
 
-        # grab the target and z_hat values that are in the range
+        # The metric is undefined if this batch has no examples
+        # in the selected mask-ratio range.
+        if not r_idx.any().item():
+            continue
+
         r_unmasked_target = unmasked_target[r_idx]
         r_masked_target = masked_target[r_idx]
         r_z_hat = z_hat[r_idx]
@@ -190,18 +226,24 @@ def _metrics(z_hat, r, target, flat_mask, output):
             s, e = r_range
             tag = f"accuracy-{s}-{e}/top{topk}"
 
-            output[f"{tag}/unmasked"] = accuracy(
-                preds=r_z_hat,
-                target=r_unmasked_target,
-                ignore_index=IGNORE_INDEX,
-                top_k=topk,
-            )
-            output[f"{tag}/masked"] = accuracy(
-                preds=r_z_hat,
-                target=r_masked_target,
-                ignore_index=IGNORE_INDEX,
-                top_k=topk,
-            )
+            # This can be empty when every token was masked
+            if (r_unmasked_target != IGNORE_INDEX).any().item():
+                output[f"{tag}/unmasked"] = accuracy(
+                    preds=r_z_hat,
+                    target=r_unmasked_target,
+                    ignore_index=IGNORE_INDEX,
+                    top_k=topk,
+                )
+
+            # This can be empty when no token was masked
+            if (r_masked_target != IGNORE_INDEX).any().item():
+                output[f"{tag}/masked"] = accuracy(
+                    preds=r_z_hat,
+                    target=r_masked_target,
+                    ignore_index=IGNORE_INDEX,
+                    top_k=topk,
+                )
+
 
 
 @dataclass
