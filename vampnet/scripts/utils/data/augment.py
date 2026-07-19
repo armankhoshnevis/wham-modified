@@ -35,7 +35,8 @@ def augment(
         subdir = subtree / audio_file.stem
         subdir.mkdir(parents=True, exist_ok=True)
 
-        src = AudioSignal(audio_file).to("cuda" if torch.cuda.is_available() else "cpu")
+        # src = AudioSignal(audio_file).to("cuda" if torch.cuda.is_available() else "cpu")
+        src = AudioSignal(audio_file).to("mps" if torch.backends.mps.is_available() else "cpu")
 
         
         for i, chunk in tqdm.tqdm(enumerate(src.windows(10, 10))):

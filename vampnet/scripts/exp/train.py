@@ -44,7 +44,30 @@ pretty.install()
 install()
 
 # optim
-Accelerator = argbind.bind(at.ml.Accelerator, without_prefix=True)
+class MPSAccelerator(at.ml.Accelerator):
+    def __init__(self, amp: bool = False):
+        if not torch.backends.mps.is_available():
+            raise RuntimeError("MPS is not available in this PyTorch environment")
+
+        # Initialize AudioTools without CUDA AMP.
+        super().__init__(amp=False)
+
+        self.device = torch.device("mps")
+        self.world_size = 1
+        self.use_ddp = False
+        self.use_dp = False
+        self.local_rank = 0
+        self.amp = False
+
+    def autocast(self, *args, **kwargs):
+        from contextlib import nullcontext
+        # Start with full float32 for maximum compatibility.
+        return nullcontext()
+Accelerator = argbind.bind(
+    MPSAccelerator,
+    without_prefix=True,
+)
+# Accelerator = argbind.bind(at.ml.Accelerator, without_prefix=True)
 CrossEntropyLoss = argbind.bind(nn.CrossEntropyLoss)
 AdamW = argbind.bind(torch.optim.AdamW)
 NoamScheduler = argbind.bind(vampnet.scheduler.NoamScheduler)
@@ -498,10 +521,14 @@ def load(
 
     if args["fine_tune"]:
         assert fine_tune_checkpoint is not None, "Must provide a fine-tune checkpoint"
-        model = torch.compile(
-            VampNet.load(location=Path(fine_tune_checkpoint), 
-                         map_location="cpu", 
-            )
+        # model = torch.compile(
+        #     VampNet.load(location=Path(fine_tune_checkpoint), 
+        #                  map_location="cpu", 
+        #     )
+        # )
+        model = VampNet.load(
+            location=Path(fine_tune_checkpoint),
+            map_location="cpu",
         )
         
     if resume:
@@ -521,7 +548,11 @@ def load(
 
 
 
-    model = torch.compile(VampNet()) if model is None else model
+    # model = torch.compile(VampNet()) if model is None else model
+    # model = accel.prepare_model(model)
+    if model is None:
+        model = VampNet()
+
     model = accel.prepare_model(model)
 
     # assert accel.unwrap(model).n_codebooks == codec.quantizer.n_codebooks
@@ -652,8 +683,11 @@ def train(
                 tracker.step == num_iters - 1 if num_iters is not None else False
             )
 
-            if tracker.step % sample_freq == 0 or last_iter:
+            if sample_freq > 0 and (tracker.step % sample_freq == 0 or last_iter):
                 save_samples(state, val_idx, writer)
+
+            # if tracker.step % sample_freq == 0 or last_iter:
+            #     save_samples(state, val_idx, writer)
 
             if tracker.step % val_freq == 0 or last_iter:
                 validate(state, val_dataloader, accel)

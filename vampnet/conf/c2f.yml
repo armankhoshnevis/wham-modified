@@ -8,7 +8,23 @@ VampNet.embedding_dim: 1280
 VampNet.n_layers: 16
 VampNet.n_heads: 20
 
-AudioDataset.duration: 3.0
+AudioDataset.duration: 1.0
+# AudioDataset.duration: 3.0
 
 
 AudioDataset.loudness_cutoff: -40.0
+
+train/AudioLoader.sources:
+  - training_data/domain_adaptation/train
+
+val/AudioLoader.sources:
+  - training_data/domain_adaptation/val
+
+# Alternatively
+# train/AudioLoader.sources:
+#   - training_data/domain_adaptation/train/fsd50k
+#   - training_data/domain_adaptation/train/wmms
+
+# val/AudioLoader.sources:
+#   - training_data/domain_adaptation/val/fsd50k
+#   - training_data/domain_adaptation/val/wmms
