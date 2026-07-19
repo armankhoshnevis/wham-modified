@@ -214,7 +214,9 @@ class State:
     criterion: CrossEntropyLoss
     grad_clip_val: float
 
-    rng: torch.quasirandom.SobolEngine
+    # rng: torch.quasirandom.SobolEngine
+    train_rng: torch.quasirandom.SobolEngine
+    val_rng: torch.quasirandom.SobolEngine
 
     train_data: AudioDataset
     val_data: AudioDataset
@@ -237,7 +239,8 @@ def train_loop(state: State, batch: dict, accel: Accelerator):
             z = z[:, : vn.n_codebooks, :]
 
         n_batch = z.shape[0]
-        r = state.rng.draw(n_batch)[:, 0].to(accel.device)
+        r = state.train_rng.draw(n_batch)[:, 0].to(accel.device)
+        # r = state.rng.draw(n_batch)[:, 0].to(accel.device)
 
         mask = pmask.random(z, r)
         mask = pmask.codebook_unmask(mask, vn.n_conditioning_codebooks)
@@ -304,7 +307,8 @@ def val_loop(state: State, batch: dict, accel: Accelerator):
     z = z[:, : vn.n_codebooks, :]
 
     n_batch = z.shape[0]
-    r = state.rng.draw(n_batch)[:, 0].to(accel.device)
+    r = state.val_rng.draw(n_batch)[:, 0].to(accel.device)
+    # r = state.rng.draw(n_batch)[:, 0].to(accel.device)
 
     mask = pmask.random(z, r)
     mask = pmask.codebook_unmask(mask, vn.n_conditioning_codebooks)
@@ -339,6 +343,7 @@ def val_loop(state: State, batch: dict, accel: Accelerator):
 
 
 def validate(state, val_dataloader, accel):
+    state.val_rng.reset()
     for batch in val_dataloader:
         output = val_loop(state, batch, accel)
     # Consolidate state dicts if using ZeroRedundancyOptimizer
@@ -575,7 +580,19 @@ def load(
     sample_rate = codec.sample_rate
 
     # a better rng for sampling from our schedule
-    rng = torch.quasirandom.SobolEngine(1, scramble=True, seed=args["seed"])  
+    train_rng = torch.quasirandom.SobolEngine(
+        1,
+        scramble=True,
+        seed=args["seed"],
+    )
+
+    val_rng = torch.quasirandom.SobolEngine(
+        1,
+        scramble=True,
+        seed=args["seed"] + 1,
+    )
+    # rng = torch.quasirandom.SobolEngine(1, scramble=True, seed=args["seed"])  
+    
 
     # log a model summary w/ num params
     if accel.local_rank == 0:
@@ -593,7 +610,9 @@ def load(
         optimizer=optimizer,
         scheduler=scheduler,
         criterion=criterion,
-        rng=rng,
+        # rng=rng,
+        train_rng=train_rng,
+        val_rng=val_rng,
         train_data=train_data,
         val_data=val_data,
         grad_clip_val=grad_clip_val,
