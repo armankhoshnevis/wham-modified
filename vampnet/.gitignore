@@ -180,7 +180,7 @@ samples*/
 models-all/
 models.zip
 .git-old
-conf/generated/*
+# conf/generated/*
 runs*/
 
 
