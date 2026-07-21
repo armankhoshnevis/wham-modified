@@ -1,0 +1,32 @@
+$include:
+  - conf/lora/lora.yml
+
+# Reproducibility
+seed: 2026
+
+# Test size
+num_iters: 50
+batch_size: 4
+num_workers: 6
+
+train/AudioDataset.n_examples: 200
+val/AudioDataset.n_examples: 16
+
+# Random training sampling but unique validation files
+train/AudioDataset.without_replacement: false
+val/AudioDataset.without_replacement: true
+
+# MPS settings
+amp: true
+
+# Optimization
+AdamW.lr: 0.0001
+NoamScheduler.warmup: 10
+NoamScheduler.factor: 0.011314
+grad_clip_val: 5.0
+
+# Monitoring
+val_freq: 25
+sample_freq: 0
+save_iters: []
+val_idx: [0]

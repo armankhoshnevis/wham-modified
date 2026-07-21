@@ -1,0 +1,10 @@
+Interface.device: mps
+
+Interface.coarse_ckpt: ./runs/mac_middle/domain_adapted/coarse/latest/vampnet/weights.pth
+Interface.coarse2fine_ckpt: ./runs/mac_middle/domain_adapted/c2f/latest/vampnet/weights.pth
+
+Interface.codec_ckpt: ./models/vampnet/codec.pth
+Interface.wavebeat_ckpt: ./models/wavebeat.pth
+
+Interface.coarse_chunk_size_s: 2
+Interface.coarse2fine_chunk_size_s: 1

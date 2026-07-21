@@ -1,0 +1,15 @@
+$include:
+  - conf/middle/mac_middle.yml
+
+fine_tune: true
+fine_tune_checkpoint: ./runs/mac_middle/domain_adapted/coarse/latest/vampnet/weights.pth
+save_path: ./runs/mac_middle/species_specific/coarse
+
+AudioDataset.duration: 2.0
+AudioDataset.loudness_cutoff: -30.0
+
+train/AudioLoader.sources:
+  - training_data/species_specific/train
+
+val/AudioLoader.sources:
+  - training_data/species_specific/val
