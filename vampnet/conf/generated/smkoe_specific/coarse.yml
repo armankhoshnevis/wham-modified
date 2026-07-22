@@ -1,24 +1,36 @@
 $include:
-- conf/lora/lora.yml
+  - conf/lora/lora.yml
+
 fine_tune: true
 fine_tune_checkpoint: ./runs/smoke_test/domain_adapted/coarse/latest/vampnet/weights.pth
 save_path: ./runs/smoke_test/domain_specific/coarse
+
+VampNet.n_codebooks: 4
+VampNet.n_conditioning_codebooks: 0
+VampNet.embedding_dim: 1280
+VampNet.n_layers: 20
+VampNet.n_heads: 20
+
+AudioDataset.duration: 2.0
+AudioDataset.loudness_cutoff: -30.0
+
 train/AudioLoader.sources:
   - training_data/species_specific/train
 val/AudioLoader.sources:
   - training_data/species_specific/val
 
-AudioDataset.duration: 2.0
+seed: 2026
+num_iters: 10
+batch_size: 8
+num_workers: 8
+amp: true
 
-num_iters: 1
-batch_size: 4
-num_workers: 6
-amp: false
-
-train/AudioDataset.n_examples: 4
-val/AudioDataset.n_examples: 4
+train/AudioDataset.n_examples: 80
+val/AudioDataset.n_examples: 16
+train/AudioDataset.without_replacement: false
+val/AudioDataset.without_replacement: true
 
 val_idx: [0]
-val_freq: 1
+val_freq: 5
 sample_freq: 0
 save_iters: []
