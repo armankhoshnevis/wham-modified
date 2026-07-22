@@ -720,7 +720,7 @@ class VampNet(at.ml.BaseModel):
 
             if i != (sampling_steps - 1):
                 num_to_mask = torch.maximum(
-                    torch.ones_like(num_to_mask), # torch.tensor(1),
+                    torch.tensor(1),
                     torch.minimum(
                         mask.sum(dim=-1, keepdim=True) - 1,
                         num_to_mask

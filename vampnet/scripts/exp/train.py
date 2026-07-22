@@ -44,30 +44,7 @@ pretty.install()
 install()
 
 # optim
-class MPSAccelerator(at.ml.Accelerator):
-    def __init__(self, amp: bool = False):
-        if not torch.backends.mps.is_available():
-            raise RuntimeError("MPS is not available in this PyTorch environment")
-
-        # Initialize AudioTools without CUDA AMP.
-        super().__init__(amp=False)
-
-        self.device = torch.device("mps")
-        self.world_size = 1
-        self.use_ddp = False
-        self.use_dp = False
-        self.local_rank = 0
-        self.amp = False
-
-    def autocast(self, *args, **kwargs):
-        from contextlib import nullcontext
-        # Start with full float32 for maximum compatibility.
-        return nullcontext()
-Accelerator = argbind.bind(
-    MPSAccelerator,
-    without_prefix=True,
-)
-# Accelerator = argbind.bind(at.ml.Accelerator, without_prefix=True)
+Accelerator = argbind.bind(at.ml.Accelerator, without_prefix=True)
 CrossEntropyLoss = argbind.bind(nn.CrossEntropyLoss)
 AdamW = argbind.bind(torch.optim.AdamW)
 NoamScheduler = argbind.bind(vampnet.scheduler.NoamScheduler)

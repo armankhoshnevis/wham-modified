@@ -204,8 +204,7 @@ def main(species: str = None):
 
 
 Interface = argbind.bind(Interface)
-device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 if __name__ == "__main__":
     conf = argbind.parse_args()
