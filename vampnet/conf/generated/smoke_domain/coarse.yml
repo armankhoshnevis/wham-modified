@@ -1,0 +1,25 @@
+$include:
+- conf/lora/lora.yml
+fine_tune: true
+fine_tune_checkpoint: ./models/vampnet/coarse.pth
+save_path: ./runs/smoke_test/domain_adapted/coarse
+train/AudioLoader.sources:
+  - training_data/domain_adaptation/train
+val/AudioLoader.sources:
+  - training_data/domain_adaptation/val
+
+
+AudioDataset.duration: 2.0
+
+num_iters: 1
+batch_size: 4
+num_workers: 6
+amp: false
+
+train/AudioDataset.n_examples: 4
+val/AudioDataset.n_examples: 4
+
+val_idx: [0]
+val_freq: 1
+sample_freq: 0
+save_iters: []
