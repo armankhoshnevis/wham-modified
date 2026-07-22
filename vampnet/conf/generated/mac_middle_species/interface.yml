@@ -1,4 +1,4 @@
-Interface.device: mps
+Interface.device: cuda
 
 Interface.coarse_ckpt: ./runs/mac_middle/species_specific/coarse/latest/vampnet/weights.pth
 Interface.coarse2fine_ckpt: ./runs/mac_middle/species_specific/c2f/latest/vampnet/weights.pth
