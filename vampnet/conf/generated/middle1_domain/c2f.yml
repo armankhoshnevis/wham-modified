@@ -3,7 +3,7 @@ $include:
 
 fine_tune: true
 fine_tune_checkpoint: ./models/vampnet/c2f.pth
-save_path: ./runs/middle_test/domain_adapted/c2f
+save_path: ./runs/middle1_test/domain_adapted/c2f
 
 # Coarse-to-fine architecture
 VampNet.n_codebooks: 14

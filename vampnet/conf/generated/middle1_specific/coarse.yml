@@ -2,8 +2,8 @@ $include:
   - conf/middle/middle1.yml
 
 fine_tune: true
-fine_tune_checkpoint: ./runs/middle_test/domain_adapted/coarse/latest/vampnet/weights.pth
-save_path: ./runs/middle_test/domain_specific/coarse
+fine_tune_checkpoint: ./runs/middle1_test/domain_adapted/coarse/latest/vampnet/weights.pth
+save_path: ./runs/middle1_test/domain_specific/coarse
 
 VampNet.n_codebooks: 4
 VampNet.n_conditioning_codebooks: 0
