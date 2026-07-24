@@ -89,9 +89,7 @@ def apply_transform(transform_fn, batch):
 
 def build_datasets(args, sample_rate: int):
     with argbind.scope(args, "train"):
-        train_data = AudioDataset(
-            AudioLoader(), sample_rate, transform=build_transform()
-        )
+        train_data = AudioDataset(AudioLoader(), sample_rate, transform=build_transform())
     with argbind.scope(args, "val"):
         val_data = AudioDataset(AudioLoader(), sample_rate, transform=build_transform())
     return train_data, val_data
