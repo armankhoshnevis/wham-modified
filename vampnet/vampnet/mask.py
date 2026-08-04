@@ -60,6 +60,7 @@ def linear_random(
     assert x.ndim == 3, "x must be (batch, n_codebooks, seq)"
     if not isinstance(r, torch.Tensor):
         r = scalar_to_batch_tensor(r, x.shape[0]).to(x.device).float()
+        r = r[:, None, None]
 
     probs = torch.ones_like(x).to(x.device).float()
     # expand to batch and codebook dims
