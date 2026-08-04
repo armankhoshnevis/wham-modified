@@ -594,14 +594,14 @@ class VampNet(at.ml.BaseModel):
         self,
         codec,
         time_steps: int = 300,
-        sampling_steps: int = 36,
+        sampling_steps: int = 36,  # vampnet: = 12
         start_tokens: Optional[torch.Tensor] = None,
-        sampling_temperature: float = 1.0,
+        sampling_temperature: float = 1.0,  # vampnet: = 12
         mask: Optional[torch.Tensor] = None,
         mask_temperature: float = 10.5,
-        typical_filtering=False,
-        typical_mass=0.2,
-        typical_min_tokens=1,
+        typical_filtering=False,  # vampnet: = True
+        typical_mass=0.2,   # vampnet: = 0.15
+        typical_min_tokens=1,  # vampnet: = 64
         top_p=None,
         return_signal=True,
         seed: int = None, 
@@ -801,7 +801,7 @@ def sample_from_logits(
     shp = logits.shape[:-1]
 
     if typical_filtering:
-        typical_filter(logits, 
+        logits = typical_filter(logits, 
                         typical_mass=typical_mass, 
                         typical_min_tokens=typical_min_tokens
         )
@@ -867,6 +867,7 @@ def mask_by_random_topk(
     logging.debug("")
 
     noise = gumbel_noise_like(probs)
+    temperature = temperature.unsqueeze(-1)
     confidence = torch.log(probs) + temperature * noise
     logging.debug(f"confidence shape: {confidence.shape}")
 
