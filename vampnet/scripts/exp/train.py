@@ -298,7 +298,8 @@ def train_loop(state: State, batch: dict, accel: Accelerator):
 
     accel.scaler.unscale_(state.optimizer)
     output["other/grad_norm"] = torch.nn.utils.clip_grad_norm_(
-        state.model.parameters(), state.grad_clip_val
+        (p for p in state.model.parameters() if p.requires_grad),
+        state.grad_clip_val
     )
 
     accel.step(state.optimizer)
@@ -541,18 +542,6 @@ def load(
 
     model, v_extra = None, {}
 
-    if args["fine_tune"]:
-        assert fine_tune_checkpoint is not None, "Must provide a fine-tune checkpoint"
-        # model = torch.compile(
-        #     VampNet.load(location=Path(fine_tune_checkpoint), 
-        #                  map_location="cpu", 
-        #     )
-        # )
-        model = VampNet.load(
-            location=Path(fine_tune_checkpoint),
-            map_location="cpu",
-        )
-        
     if resume:
         kwargs = {
             "folder": f"{save_path}/{tag}",
@@ -563,29 +552,41 @@ def load(
         if (Path(kwargs["folder"]) / "vampnet").exists():
             model, v_extra = VampNet.load_from_folder(**kwargs)
         else:
-            raise ValueError(
-                f"Could not find a VampNet checkpoint in {kwargs['folder']}"
-            )
-
-
-
-
-    # model = torch.compile(VampNet()) if model is None else model
-    # model = accel.prepare_model(model)
-    if model is None:
+            raise ValueError(f"Could not find a VampNet checkpoint in {kwargs['folder']}")
+    
+    elif args["fine_tune"]:
+        assert fine_tune_checkpoint is not None, "Must provide a fine-tune checkpoint"
+        model = VampNet.load(location=Path(fine_tune_checkpoint), map_location="cpu")
+    
+    else:
         model = VampNet()
 
+    if args["fine_tune"]:
+        lora.mark_only_lora_as_trainable(model)
+        tracker.print("Marked only LoRA parameters as trainable.")
+
+    model.compile()
     model = accel.prepare_model(model)
 
     # assert accel.unwrap(model).n_codebooks == codec.quantizer.n_codebooks
-    assert (
-        accel.unwrap(model).vocab_size == codec.quantizer.quantizers[0].codebook_size
-    )
+    assert accel.unwrap(model).vocab_size == codec.quantizer.quantizers[0].codebook_size
 
-    optimizer = AdamW(model.parameters(), use_zero=accel.use_ddp)
+    trainable_params = [p for p in model.parameters() if p.requires_grad]
+    
+    if accel.use_ddp:
+        from torch.distributed.optim import ZeroRedundancyOptimizer
+        optimizer = ZeroRedundancyOptimizer(
+            trainable_params,
+            optimizer_class=AdamW,
+            )
+    else:
+        optimizer = AdamW(trainable_params)
+    
     scheduler = NoamScheduler(optimizer, d_model=accel.unwrap(model).embedding_dim)
     scheduler.step()
 
+    # Caveat: Old fine-tuning optimizer checkpoints containing all model parameters may fail 
+    # at optimizer.load_state_dict() because the new optimizer contains only LoRA parameters.
     if "optimizer.pth" in v_extra:
         optimizer.load_state_dict(v_extra["optimizer.pth"])
         scheduler.load_state_dict(v_extra["scheduler.pth"])
@@ -656,15 +657,14 @@ def train(
 
     seed = seed + accel.local_rank
     at.util.seed(seed)
+    
     writer = None
-
     if accel.local_rank == 0:
         writer = SummaryWriter(log_dir=f"{save_path}/logs/")
         argbind.dump_args(args, f"{save_path}/args.yml")
 
-        tracker = Tracker(
-            writer=writer, log_file=f"{save_path}/log.txt", rank=accel.local_rank
-        )
+    log_file = f"{save_path}/log.txt" if accel.local_rank == 0 else None
+    tracker = Tracker(writer=writer, log_file=log_file, rank=accel.local_rank)
 
     # load the codec model
     state: State = load(
@@ -690,12 +690,6 @@ def train(
         persistent_workers=num_workers > 0,
     )
     print("initialized dataloader.")
-
-    
-
-    if fine_tune:
-        lora.mark_only_lora_as_trainable(state.model)
-        print("marked only lora as trainable.")
 
     # Wrap the functions so that they neatly track in TensorBoard + progress bars
     # and only run when specific conditions are met.
