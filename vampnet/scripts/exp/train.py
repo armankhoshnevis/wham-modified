@@ -496,7 +496,7 @@ def save_samples(state: State, val_idx: int, writer: SummaryWriter):
 
     z_mask_latent = vn.embedding.from_codes(z_mask, state.codec)
 
-    z_hat = state.model(z_mask_latent)
+    z_hat = vn(z_mask_latent)
 
     z_pred = torch.softmax(z_hat, dim=1).argmax(dim=1)
     z_pred = codebook_unflatten(z_pred, n_c=vn.n_predict_codebooks)
@@ -601,13 +601,13 @@ def load(
     train_rng = torch.quasirandom.SobolEngine(
         1,
         scramble=True,
-        seed=args["seed"],
+        seed=args["seed"] + accel.local_rank,
     )
 
     val_rng = torch.quasirandom.SobolEngine(
         1,
         scramble=True,
-        seed=args["seed"] + 1,
+        seed=args["seed"] + accel.local_rank + 100_000,
     )
     # rng = torch.quasirandom.SobolEngine(1, scramble=True, seed=args["seed"])  
     
