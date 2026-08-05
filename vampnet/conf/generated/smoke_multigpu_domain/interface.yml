@@ -1,0 +1,6 @@
+AudioLoader.sources:
+- - training_data/domain_adaptation/train
+Interface.coarse2fine_ckpt: ./runs/smoke_multigpu_domain/c2f/latest/vampnet/weights.pth
+Interface.coarse_ckpt: ./runs/smoke_multigpu_domain/coarse/latest/vampnet/weights.pth
+Interface.codec_ckpt: ./models/vampnet/codec.pth
+Interface.wavebeat_ckpt: ./models/wavebeat.pth

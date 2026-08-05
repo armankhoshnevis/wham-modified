@@ -1,0 +1,24 @@
+$include:
+  - conf/smoke_multigpu/smoke_multigpu.yml
+
+fine_tune: true
+fine_tune_checkpoint: ./models/vampnet/coarse.pth
+save_path: ./runs/smoke_multigpu_domain/coarse
+
+# Coarse architecture
+VampNet.n_codebooks: 4
+VampNet.n_conditioning_codebooks: 0
+VampNet.embedding_dim: 1280
+VampNet.n_layers: 20
+VampNet.n_heads: 20
+
+# Audio excerpts
+AudioDataset.duration: 2.0
+AudioDataset.loudness_cutoff: -30.0
+
+# Separate train and validation data
+train/AudioLoader.sources:
+  - training_data/domain_adaptation/train
+
+val/AudioLoader.sources:
+  - training_data/domain_adaptation/val
