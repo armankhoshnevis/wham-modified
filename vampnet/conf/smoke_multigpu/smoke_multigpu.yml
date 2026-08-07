@@ -1,0 +1,33 @@
+$include:
+  - conf/lora/lora.yml
+
+# Reproducibility
+seed: 2026
+
+# Training
+num_iters: 10
+batch_size: 8
+num_workers: 8
+amp: true
+train/AudioDataset.n_examples: 80
+
+# Validation
+val/AudioDataset.n_examples: 16
+val_idx: [0]
+val_freq: 5
+
+# Qualitative TensorBoard audio
+sample_freq: 0
+
+# Numbered checkpoints must use multiples of 1000
+save_iters: []
+
+# Optimization
+AdamW.lr: 0.0001
+NoamScheduler.warmup: 500
+NoamScheduler.factor: 0.08
+grad_clip_val: 5.0
+
+# Sampling behavior
+train/AudioDataset.without_replacement: false
+val/AudioDataset.without_replacement: true

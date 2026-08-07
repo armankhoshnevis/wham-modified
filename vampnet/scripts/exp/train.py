@@ -147,78 +147,47 @@ def accuracy(
 
     return accuracy
 
-# def _metrics(z_hat, r, target, flat_mask, output):
-#     for r_range in [(0, 0.5), (0.5, 1.0)]:
-#         unmasked_target = target.masked_fill(flat_mask.bool(), IGNORE_INDEX)
-#         masked_target = target.masked_fill(~flat_mask.bool(), IGNORE_INDEX)
-
-#         assert target.shape[0] == r.shape[0]
-#         # grab the indices of the r values that are in the range
-#         r_idx = (r >= r_range[0]) & (r < r_range[1])
-
-#         # grab the target and z_hat values that are in the range
-#         r_unmasked_target = unmasked_target[r_idx]
-#         r_masked_target = masked_target[r_idx]
-#         r_z_hat = z_hat[r_idx]
-
-#         for topk in (1, 25):
-#             s, e = r_range
-#             tag = f"accuracy-{s}-{e}/top{topk}"
-
-#             output[f"{tag}/unmasked"] = accuracy(
-#                 preds=r_z_hat,
-#                 target=r_unmasked_target,
-#                 ignore_index=IGNORE_INDEX,
-#                 top_k=topk,
-#             )
-#             output[f"{tag}/masked"] = accuracy(
-#                 preds=r_z_hat,
-#                 target=r_masked_target,
-#                 ignore_index=IGNORE_INDEX,
-#                 top_k=topk,
-#             )
-
 def _metrics(z_hat, r, target, flat_mask, output):
-    for r_range in [(0, 0.5), (0.5, 1.0)]:
-        unmasked_target = target.masked_fill(flat_mask.bool(), IGNORE_INDEX)
-        masked_target = target.masked_fill(~flat_mask.bool(), IGNORE_INDEX)
+    assert target.shape[0] == r.shape[0]
 
-        assert target.shape[0] == r.shape[0]
+    flat_mask = flat_mask.bool()
+    unmasked_target = target.masked_fill(flat_mask, IGNORE_INDEX)
+    masked_target = target.masked_fill(~flat_mask, IGNORE_INDEX)
 
-        # Select examples whose mask ratio falls inside this range
-        r_idx = (r >= r_range[0]) & (r < r_range[1])
+    def safe_accuracy(preds, metric_target, top_k):
+        has_valid_target = metric_target.numel() > 0 and (
+            metric_target != IGNORE_INDEX
+        ).any().item()
 
-        # The metric is undefined if this batch has no examples
-        # in the selected mask-ratio range.
-        if not r_idx.any().item():
-            continue
+        if not has_valid_target:
+            return torch.zeros((), device=preds.device, dtype=torch.float32)
 
-        r_unmasked_target = unmasked_target[r_idx]
-        r_masked_target = masked_target[r_idx]
-        r_z_hat = z_hat[r_idx]
+        return accuracy(
+            preds=preds,
+            target=metric_target,
+            ignore_index=IGNORE_INDEX,
+            top_k=top_k,
+        )
 
-        for topk in (1, 25):
-            s, e = r_range
-            tag = f"accuracy-{s}-{e}/top{topk}"
+    for range_start, range_end in ((0, 0.5), (0.5, 1.0)):
+        range_mask = (r >= range_start) & (r < range_end)
+        range_predictions = z_hat[range_mask]
+        range_unmasked_target = unmasked_target[range_mask]
+        range_masked_target = masked_target[range_mask]
 
-            # This can be empty when every token was masked
-            if (r_unmasked_target != IGNORE_INDEX).any().item():
-                output[f"{tag}/unmasked"] = accuracy(
-                    preds=r_z_hat,
-                    target=r_unmasked_target,
-                    ignore_index=IGNORE_INDEX,
-                    top_k=topk,
-                )
+        for top_k in (1, 25):
+            tag = f"accuracy-{range_start}-{range_end}/top{top_k}"
 
-            # This can be empty when no token was masked
-            if (r_masked_target != IGNORE_INDEX).any().item():
-                output[f"{tag}/masked"] = accuracy(
-                    preds=r_z_hat,
-                    target=r_masked_target,
-                    ignore_index=IGNORE_INDEX,
-                    top_k=topk,
-                )
-
+            output[f"{tag}/unmasked"] = safe_accuracy(
+                range_predictions,
+                range_unmasked_target,
+                top_k,
+            )
+            output[f"{tag}/masked"] = safe_accuracy(
+                range_predictions,
+                range_masked_target,
+                top_k,
+            )
 
 
 @dataclass
@@ -234,6 +203,9 @@ class State:
     # rng: torch.quasirandom.SobolEngine
     train_rng: torch.quasirandom.SobolEngine
     val_rng: torch.quasirandom.SobolEngine
+    train_mask_rng: torch.Generator
+    val_mask_rng: torch.Generator
+    val_mask_seed: int
 
     train_data: AudioDataset
     val_data: AudioDataset
@@ -259,7 +231,7 @@ def train_loop(state: State, batch: dict, accel: Accelerator):
         r = state.train_rng.draw(n_batch)[:, 0].to(accel.device)
         # r = state.rng.draw(n_batch)[:, 0].to(accel.device)
 
-        mask = pmask.random(z, r)
+        mask = pmask.random(z, r, generator=state.train_mask_rng)
         mask = pmask.codebook_unmask(mask, vn.n_conditioning_codebooks)
         z_mask, mask = pmask.apply_mask(z, mask, vn.mask_token)
         
@@ -298,7 +270,8 @@ def train_loop(state: State, batch: dict, accel: Accelerator):
 
     accel.scaler.unscale_(state.optimizer)
     output["other/grad_norm"] = torch.nn.utils.clip_grad_norm_(
-        state.model.parameters(), state.grad_clip_val
+        (p for p in state.model.parameters() if p.requires_grad),
+        state.grad_clip_val
     )
 
     accel.step(state.optimizer)
@@ -327,7 +300,7 @@ def val_loop(state: State, batch: dict, accel: Accelerator):
     r = state.val_rng.draw(n_batch)[:, 0].to(accel.device)
     # r = state.rng.draw(n_batch)[:, 0].to(accel.device)
 
-    mask = pmask.random(z, r)
+    mask = pmask.random(z, r, generator=state.val_mask_rng)
     mask = pmask.codebook_unmask(mask, vn.n_conditioning_codebooks)
     z_mask, mask = pmask.apply_mask(z, mask, vn.mask_token)
 
@@ -361,8 +334,11 @@ def val_loop(state: State, batch: dict, accel: Accelerator):
 
 def validate(state, val_dataloader, accel):
     state.val_rng.reset()
+    state.val_mask_rng.manual_seed(state.val_mask_seed)
+    
     for batch in val_dataloader:
         output = val_loop(state, batch, accel)
+    
     # Consolidate state dicts if using ZeroRedundancyOptimizer
     if hasattr(state.optimizer, "consolidate_state_dict"):
         state.optimizer.consolidate_state_dict()
@@ -495,7 +471,7 @@ def save_samples(state: State, val_idx: int, writer: SummaryWriter):
 
     z_mask_latent = vn.embedding.from_codes(z_mask, state.codec)
 
-    z_hat = state.model(z_mask_latent)
+    z_hat = vn(z_mask_latent)
 
     z_pred = torch.softmax(z_hat, dim=1).argmax(dim=1)
     z_pred = codebook_unflatten(z_pred, n_c=vn.n_predict_codebooks)
@@ -541,18 +517,6 @@ def load(
 
     model, v_extra = None, {}
 
-    if args["fine_tune"]:
-        assert fine_tune_checkpoint is not None, "Must provide a fine-tune checkpoint"
-        # model = torch.compile(
-        #     VampNet.load(location=Path(fine_tune_checkpoint), 
-        #                  map_location="cpu", 
-        #     )
-        # )
-        model = VampNet.load(
-            location=Path(fine_tune_checkpoint),
-            map_location="cpu",
-        )
-        
     if resume:
         kwargs = {
             "folder": f"{save_path}/{tag}",
@@ -563,29 +527,41 @@ def load(
         if (Path(kwargs["folder"]) / "vampnet").exists():
             model, v_extra = VampNet.load_from_folder(**kwargs)
         else:
-            raise ValueError(
-                f"Could not find a VampNet checkpoint in {kwargs['folder']}"
-            )
-
-
-
-
-    # model = torch.compile(VampNet()) if model is None else model
-    # model = accel.prepare_model(model)
-    if model is None:
+            raise ValueError(f"Could not find a VampNet checkpoint in {kwargs['folder']}")
+    
+    elif args["fine_tune"]:
+        assert fine_tune_checkpoint is not None, "Must provide a fine-tune checkpoint"
+        model = VampNet.load(location=Path(fine_tune_checkpoint), map_location="cpu")
+    
+    else:
         model = VampNet()
 
+    if args["fine_tune"]:
+        lora.mark_only_lora_as_trainable(model)
+        tracker.print("Marked only LoRA parameters as trainable.")
+
+    model.compile()
     model = accel.prepare_model(model)
 
     # assert accel.unwrap(model).n_codebooks == codec.quantizer.n_codebooks
-    assert (
-        accel.unwrap(model).vocab_size == codec.quantizer.quantizers[0].codebook_size
-    )
+    assert accel.unwrap(model).vocab_size == codec.quantizer.quantizers[0].codebook_size
 
-    optimizer = AdamW(model.parameters(), use_zero=accel.use_ddp)
+    trainable_params = [p for p in model.parameters() if p.requires_grad]
+    
+    if accel.use_ddp:
+        from torch.distributed.optim import ZeroRedundancyOptimizer
+        optimizer = ZeroRedundancyOptimizer(
+            trainable_params,
+            optimizer_class=AdamW,
+            )
+    else:
+        optimizer = AdamW(trainable_params)
+    
     scheduler = NoamScheduler(optimizer, d_model=accel.unwrap(model).embedding_dim)
     scheduler.step()
 
+    # Caveat: Old fine-tuning optimizer checkpoints containing all model parameters may fail 
+    # at optimizer.load_state_dict() because the new optimizer contains only LoRA parameters.
     if "optimizer.pth" in v_extra:
         optimizer.load_state_dict(v_extra["optimizer.pth"])
         scheduler.load_state_dict(v_extra["scheduler.pth"])
@@ -596,17 +572,26 @@ def load(
 
     sample_rate = codec.sample_rate
 
+    train_mask_seed = args["seed"] + accel.local_rank + 200_000
+    val_mask_seed = args["seed"] + accel.local_rank + 300_000
+    
+    train_mask_rng = torch.Generator(device=accel.device)
+    train_mask_rng.manual_seed(train_mask_seed)
+
+    val_mask_rng = torch.Generator(device=accel.device)
+    val_mask_rng.manual_seed(val_mask_seed)
+    
     # a better rng for sampling from our schedule
     train_rng = torch.quasirandom.SobolEngine(
         1,
         scramble=True,
-        seed=args["seed"],
+        seed=args["seed"] + accel.local_rank,
     )
 
     val_rng = torch.quasirandom.SobolEngine(
         1,
         scramble=True,
-        seed=args["seed"] + 1,
+        seed=args["seed"] + accel.local_rank + 100_000,
     )
     # rng = torch.quasirandom.SobolEngine(1, scramble=True, seed=args["seed"])  
     
@@ -630,6 +615,9 @@ def load(
         # rng=rng,
         train_rng=train_rng,
         val_rng=val_rng,
+        train_mask_rng=train_mask_rng,
+        val_mask_rng=val_mask_rng,
+        val_mask_seed=val_mask_seed,
         train_data=train_data,
         val_data=val_data,
         grad_clip_val=grad_clip_val,
@@ -656,15 +644,14 @@ def train(
 
     seed = seed + accel.local_rank
     at.util.seed(seed)
+    
     writer = None
-
     if accel.local_rank == 0:
         writer = SummaryWriter(log_dir=f"{save_path}/logs/")
         argbind.dump_args(args, f"{save_path}/args.yml")
 
-        tracker = Tracker(
-            writer=writer, log_file=f"{save_path}/log.txt", rank=accel.local_rank
-        )
+    log_file = f"{save_path}/log.txt" if accel.local_rank == 0 else None
+    tracker = Tracker(writer=writer, log_file=log_file, rank=accel.local_rank)
 
     # load the codec model
     state: State = load(
@@ -690,12 +677,6 @@ def train(
         persistent_workers=num_workers > 0,
     )
     print("initialized dataloader.")
-
-    
-
-    if fine_tune:
-        lora.mark_only_lora_as_trainable(state.model)
-        print("marked only lora as trainable.")
 
     # Wrap the functions so that they neatly track in TensorBoard + progress bars
     # and only run when specific conditions are met.

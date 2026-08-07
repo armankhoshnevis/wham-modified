@@ -1,0 +1,27 @@
+$include:
+  - conf/middle_multigpu/middle_multigpu.yml
+
+fine_tune: true
+fine_tune_checkpoint: ./models/vampnet/c2f.pth
+save_path: ./runs/middle_multigpu_domain/c2f
+
+# Coarse-to-fine architecture
+VampNet.n_codebooks: 14
+VampNet.n_conditioning_codebooks: 4
+VampNet.embedding_dim: 1280
+VampNet.n_layers: 16
+VampNet.n_heads: 20
+
+# Audio excerpts
+AudioDataset.duration: 2.0
+AudioDataset.loudness_cutoff: -30.0
+
+# Validation set: 296 examples = 37 global batches of 8
+val/AudioDataset.n_examples: 296
+
+# Separate train and validation data
+train/AudioLoader.sources:
+  - training_data/domain_adaptation/train
+
+val/AudioLoader.sources:
+  - training_data/domain_adaptation/val
