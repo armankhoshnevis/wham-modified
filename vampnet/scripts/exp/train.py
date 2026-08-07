@@ -203,6 +203,9 @@ class State:
     # rng: torch.quasirandom.SobolEngine
     train_rng: torch.quasirandom.SobolEngine
     val_rng: torch.quasirandom.SobolEngine
+    train_mask_rng: torch.Generator
+    val_mask_rng: torch.Generator
+    val_mask_seed: int
 
     train_data: AudioDataset
     val_data: AudioDataset
@@ -228,7 +231,7 @@ def train_loop(state: State, batch: dict, accel: Accelerator):
         r = state.train_rng.draw(n_batch)[:, 0].to(accel.device)
         # r = state.rng.draw(n_batch)[:, 0].to(accel.device)
 
-        mask = pmask.random(z, r)
+        mask = pmask.random(z, r, generator=state.train_mask_rng)
         mask = pmask.codebook_unmask(mask, vn.n_conditioning_codebooks)
         z_mask, mask = pmask.apply_mask(z, mask, vn.mask_token)
         
@@ -297,7 +300,7 @@ def val_loop(state: State, batch: dict, accel: Accelerator):
     r = state.val_rng.draw(n_batch)[:, 0].to(accel.device)
     # r = state.rng.draw(n_batch)[:, 0].to(accel.device)
 
-    mask = pmask.random(z, r)
+    mask = pmask.random(z, r, generator=state.val_mask_rng)
     mask = pmask.codebook_unmask(mask, vn.n_conditioning_codebooks)
     z_mask, mask = pmask.apply_mask(z, mask, vn.mask_token)
 
@@ -331,8 +334,11 @@ def val_loop(state: State, batch: dict, accel: Accelerator):
 
 def validate(state, val_dataloader, accel):
     state.val_rng.reset()
+    state.val_mask_rng.manual_seed(state.val_mask_seed)
+    
     for batch in val_dataloader:
         output = val_loop(state, batch, accel)
+    
     # Consolidate state dicts if using ZeroRedundancyOptimizer
     if hasattr(state.optimizer, "consolidate_state_dict"):
         state.optimizer.consolidate_state_dict()
@@ -566,6 +572,15 @@ def load(
 
     sample_rate = codec.sample_rate
 
+    train_mask_seed = args["seed"] + accel.local_rank + 200_000
+    val_mask_seed = args["seed"] + accel.local_rank + 300_000
+    
+    train_mask_rng = torch.Generator(device=accel.device)
+    train_mask_rng.manual_seed(train_mask_seed)
+
+    val_mask_rng = torch.Generator(device=accel.device)
+    val_mask_rng.manual_seed(val_mask_seed)
+    
     # a better rng for sampling from our schedule
     train_rng = torch.quasirandom.SobolEngine(
         1,
@@ -600,6 +615,9 @@ def load(
         # rng=rng,
         train_rng=train_rng,
         val_rng=val_rng,
+        train_mask_rng=train_mask_rng,
+        val_mask_rng=val_mask_rng,
+        val_mask_seed=val_mask_seed,
         train_data=train_data,
         val_data=val_data,
         grad_clip_val=grad_clip_val,
