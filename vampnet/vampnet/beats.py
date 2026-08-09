@@ -209,7 +209,6 @@ class WaveBeat(BeatTracker):
             map_location=torch.device(device),
             weights_only=False,
         )
-        # model = dsTCNModel.load_from_checkpoint(ckpt_path, map_location=torch.device(device))
         model.eval()
 
         self.device = device
