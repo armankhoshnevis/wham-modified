@@ -1,0 +1,31 @@
+$include:
+  - conf/lora/lora.yml
+
+seed: 2026
+num_iters: 500000
+batch_size: 8
+num_workers: 16
+amp: false
+
+# 500,000 iterations * 8 global examples/update = 4,000,000 virtual dataloader length
+train/AudioDataset.n_examples: 4000000
+
+# 512 is divisible by both the global batch size and the 4 DDP ranks,
+# yet close to WhAM's 500-example fine-tuning setup.
+val/AudioDataset.n_examples: 512
+val/AudioDataset.without_replacement: true
+val_idx: [0,1,2,3,4,5,6,7,8,9]
+val_freq: 1000
+
+sample_freq: 2000
+save_iters: [2000, 4000, 10000, 20000, 40000, 100000, 200000, 300000, 400000]
+
+# Set scheduler such that the peak lr reaches 1e-4
+AdamW.lr: 0.0001
+NoamScheduler.warmup: 500
+NoamScheduler.factor: 0.08
+grad_clip_val: 5.0
+
+train/AudioDataset.without_replacement: false
+
+codec_ckpt: ./models/vampnet/codec.pth

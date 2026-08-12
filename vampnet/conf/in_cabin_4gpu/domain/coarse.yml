@@ -1,0 +1,26 @@
+$include:
+  - conf/in_cabin_4gpu/common.yml
+
+fine_tune: true
+fine_tune_checkpoint: ./models/vampnet/coarse.pth
+save_path: ./runs/in_cabin_4gpu/domain/coarse
+
+VampNet.vocab_size: 1024
+VampNet.n_codebooks: 4
+VampNet.n_conditioning_codebooks: 0
+VampNet.r_cond_dim: 0
+VampNet.noise_mode: mask
+VampNet.embedding_dim: 1280
+VampNet.n_layers: 20
+VampNet.n_heads: 20
+VampNet.flash_attn: false
+VampNet.dropout: 0.1
+
+AudioDataset.duration: 10.0
+AudioDataset.loudness_cutoff: -30.0
+
+train/AudioLoader.sources:
+  - training_data/domain_adaptation/train
+
+val/AudioLoader.sources:
+  - training_data/domain_adaptation/val
