@@ -4,8 +4,6 @@ set -euo pipefail
 config_path="conf/in_cabin_4gpu/domain/c2f.yml"
 log_dir="runs/in_cabin_4gpu/domain/logs"
 
-
-
 mkdir -p "${log_dir}"
 time env \
   CUDA_VISIBLE_DEVICES=1,2,3,4 \
